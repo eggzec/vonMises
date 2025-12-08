@@ -1,0 +1,32 @@
+name: Build and Deploy Docs
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  docs-deploy:
+    name: Build and Deploy Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup micromamba
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: vm
+          environment-file: environment.yml
+          generate-run-shell: true
+
+      - name: Verify MkDocs installation
+        run: mkdocs --version
+        shell: micromamba-shell {0}
+
+      - name: Build documentation
+        run: mkdocs build
+        shell: micromamba-shell {0}
+        working-directory: ./docs
