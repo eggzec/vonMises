@@ -47,3 +47,6 @@ version.h
 *.exe
 *.out
 *.app
+
+# Docs
+docs/site/
