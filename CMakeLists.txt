@@ -52,6 +52,10 @@ configure_file(
 # Add shared library target for your main project
 add_library(vonmises SHARED ${SOURCES})
 
+# MSVC omits the "lib" prefix that MinGW and the Unix toolchains add, so
+# pin it and keep one library name across every platform.
+set_target_properties(vonmises PROPERTIES PREFIX "lib")
+
 # Link the fmt static library with your vonmises shared library
 target_link_libraries(vonmises PRIVATE fmt)
 

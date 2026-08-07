@@ -1,6 +1,7 @@
 import sys
 from skbuild import setup
 
+
 cmake_args = []
 if sys.platform == "win32":
     cmake_args.append("-G")
