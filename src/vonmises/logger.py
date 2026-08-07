@@ -14,14 +14,11 @@ License for more details.
 
 Logging for vonMises.
 
-The C++ library routes its messages into this same logger through the
-CPython API (see src/vonmiseslib/logger.cpp), so C++ and Python output
-share one stream, one format and one level.
-
-C++ records are emitted one level above their Python counterparts, and
-TRACE occupies level 5. That keeps the two sides distinguishable in the
-log while still ordering correctly, so `p:INFO` and `c:INFO` are both
-visible at INFO but obviously different in origin.
+The C++ library forwards its records here through the CPython API, passing
+__FILE__ and __LINE__ so that each line is attributed to its true origin.
+Records from the shared library therefore appear as `von_mises.cpp:52`
+while Python records appear as `eigen.py:31`, and both use the standard
+logging levels.
 """
 
 import logging
@@ -31,37 +28,21 @@ __all__ = [
     "LOGGER",
     "TRACE",
     "add_file_handler",
+    "makeCppRecord",
     "set_output_level",
 ]
 
-# Custom level for C++ trace output; below DEBUG so it is filtered out
-# unless explicitly requested.
 TRACE = 5
-
-_LABEL_WIDTH = 9
-
-logging.addLevelName(logging.ERROR, "p:ERROR".ljust(_LABEL_WIDTH, ":"))
-logging.addLevelName(logging.WARNING, "p:WARNING".ljust(_LABEL_WIDTH, ":"))
-logging.addLevelName(logging.INFO, "p:INFO".ljust(_LABEL_WIDTH, ":"))
-logging.addLevelName(logging.DEBUG, "p:DEBUG".ljust(_LABEL_WIDTH, ":"))
-
-logging.addLevelName(logging.ERROR + 1, "c:ERROR".ljust(_LABEL_WIDTH, ":"))
-logging.addLevelName(logging.WARNING + 1, "c:WARNING".ljust(_LABEL_WIDTH, ":"))
-logging.addLevelName(logging.INFO + 1, "c:INFO".ljust(_LABEL_WIDTH, ":"))
-logging.addLevelName(logging.DEBUG + 1, "c:DEBUG".ljust(_LABEL_WIDTH, ":"))
-logging.addLevelName(TRACE, "c:TRACE".ljust(_LABEL_WIDTH, ":"))
+logging.addLevelName(TRACE, "TRACE")
 
 _FORMATTER = logging.Formatter(
-    fmt="%(asctime)s %(levelname)s - %(message)s", datefmt="%H:%M:%S"
+    fmt="%(asctime)s %(levelname)-7s %(filename)s:%(lineno)d - %(message)s",
+    datefmt="%H:%M:%S",
 )
 
-# Errors go to stderr, everything else to stdout, so piping stdout does not
-# swallow failures.
 _CONSOLE_OUTPUT_HANDLER = logging.StreamHandler(stream=sys.stdout)
 _CONSOLE_OUTPUT_HANDLER.setFormatter(_FORMATTER)
-_CONSOLE_OUTPUT_HANDLER.addFilter(
-    lambda record: record.levelno not in {logging.ERROR, logging.ERROR + 1}
-)
+_CONSOLE_OUTPUT_HANDLER.addFilter(lambda record: record.levelno < logging.ERROR)
 
 _CONSOLE_ERROR_HANDLER = logging.StreamHandler(stream=sys.stderr)
 _CONSOLE_ERROR_HANDLER.setFormatter(_FORMATTER)
@@ -71,12 +52,38 @@ LOGGER = logging.getLogger("vonMises")
 LOGGER.setLevel(logging.INFO)
 LOGGER.addHandler(_CONSOLE_OUTPUT_HANDLER)
 LOGGER.addHandler(_CONSOLE_ERROR_HANDLER)
-
-# Messages are emitted by this logger's own handlers only; without this a
-# root handler configured by the host application would duplicate them.
 LOGGER.propagate = False
 
 _FILE_HANDLER = None
+
+
+def makeCppRecord(level: int, message: str, filename: str, lineno: int) -> None:
+    """
+    Emit a record originating in the C++ library.
+
+    ``filename`` and ``lineno`` are reserved :class:`logging.LogRecord`
+    attributes, so they cannot be supplied through ``extra``; the record is
+    built directly instead, which attributes the line to the C++ source
+    rather than to this function.
+
+    Parameters
+    ----------
+    level : int
+        Standard logging level.
+    message : str
+        Already-formatted message text.
+    filename : str
+        Value of ``__FILE__`` at the call site.
+    lineno : int
+        Value of ``__LINE__`` at the call site.
+    """
+    if not LOGGER.isEnabledFor(level):
+        return
+
+    record = LOGGER.makeRecord(
+        LOGGER.name, level, filename, lineno, message, None, None
+    )
+    LOGGER.handle(record)
 
 
 def add_file_handler(filename: str = "vonMises.log", mode: str = "w") -> None:

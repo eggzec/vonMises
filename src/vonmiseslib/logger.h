@@ -23,52 +23,48 @@
 namespace Logger {
     enum class LogLevel { ERROR, WARNING, INFO, DEBUG, TRACE };
 
-    // Threshold used only by the plain-stdout backend. When the library is
-    // built with USE_PYTHON_LOGGING the Python logger owns level filtering,
-    // so this is ignored and levels are set from Python instead.
     extern LogLevel logLevel;
 
-    void LogMessage(const LogLevel type, const std::string& msg);
-    void LogAndThrowError(const std::string& msg);
+    void LogMessage(
+        const LogLevel type,
+        const std::string& msg,
+        const char* file,
+        const int line
+    );
+    void LogAndThrowError(
+        const std::string& msg, const char* file, const int line
+    );
 
     double Time();
     std::string DeltaTime(const double startTime);
 }
 
-// Serialise output when several OpenMP threads log at once; without this
-// interleaved writes corrupt individual lines.
 #ifdef USE_OPENMP
     #define CRITICAL_OUTPUT _Pragma("omp critical (IOSync)")
 #else
     #define CRITICAL_OUTPUT
 #endif
 
-/*
- * Public logging macros.
- *
- * These keep vonMises' historical *_OUT names rather than the bare
- * TRACE/DEBUG/INFO/WARNING/ERROR of the reference implementation. On
- * Windows <wingdi.h> defines ERROR as a preprocessor macro, so a bare
- * ERROR macro breaks any translation unit that transitively includes
- * windows.h. Keeping the suffix avoids that collision and leaves the
- * existing call sites untouched.
- *
- * Format strings are checked at compile time via FMT_STRING.
- */
-#define TRACE_OUT(s, ...) \
-    CRITICAL_OUTPUT Logger::LogMessage(Logger::LogLevel::TRACE, fmt::format(FMT_STRING(s), ##__VA_ARGS__))
-#define DEBUG_OUT(s, ...) \
-    CRITICAL_OUTPUT Logger::LogMessage(Logger::LogLevel::DEBUG, fmt::format(FMT_STRING(s), ##__VA_ARGS__))
-#define INFO_OUT(s, ...) \
-    CRITICAL_OUTPUT Logger::LogMessage(Logger::LogLevel::INFO, fmt::format(FMT_STRING(s), ##__VA_ARGS__))
-#define WARNING_OUT(s, ...) \
-    CRITICAL_OUTPUT Logger::LogMessage(Logger::LogLevel::WARNING, fmt::format(FMT_STRING(s), ##__VA_ARGS__))
+#define TRACE_OUT(s, ...)                    \
+    CRITICAL_OUTPUT Logger::LogMessage(      \
+        Logger::LogLevel::TRACE,             \
+        fmt::format(FMT_STRING(s), ##__VA_ARGS__), __FILE__, __LINE__)
+#define DEBUG_OUT(s, ...)                    \
+    CRITICAL_OUTPUT Logger::LogMessage(      \
+        Logger::LogLevel::DEBUG,             \
+        fmt::format(FMT_STRING(s), ##__VA_ARGS__), __FILE__, __LINE__)
+#define INFO_OUT(s, ...)                     \
+    CRITICAL_OUTPUT Logger::LogMessage(      \
+        Logger::LogLevel::INFO,              \
+        fmt::format(FMT_STRING(s), ##__VA_ARGS__), __FILE__, __LINE__)
+#define WARNING_OUT(s, ...)                  \
+    CRITICAL_OUTPUT Logger::LogMessage(      \
+        Logger::LogLevel::WARNING,           \
+        fmt::format(FMT_STRING(s), ##__VA_ARGS__), __FILE__, __LINE__)
+#define ERROR_OUT(s, ...)                    \
+    Logger::LogAndThrowError(                \
+        fmt::format(FMT_STRING(s), ##__VA_ARGS__), __FILE__, __LINE__)
 
-// ERROR_OUT logs and then throws; it does not return.
-#define ERROR_OUT(s, ...) \
-    Logger::LogAndThrowError(fmt::format(FMT_STRING(s), ##__VA_ARGS__))
-
-// Function entry/exit tracing.
 inline std::string methodName(const std::string& prettyFunction) {
     size_t colons = prettyFunction.find("::");
     size_t begin = prettyFunction.substr(0, colons).rfind(" ") + 1;
@@ -89,10 +85,6 @@ inline std::string methodName(const std::string& prettyFunction) {
 #define FUNC_EXIT \
     TRACE_OUT("- Completed '{}' in {}", __METHOD_NAME__, Logger::DeltaTime(__function_start));
 
-/*
- * Retained for source compatibility with the previous logger, whose
- * timing helpers were free functions.
- */
 inline double clocktime() { return Logger::Time(); }
 inline std::string deltaTime(const double startTime) { return Logger::DeltaTime(startTime); }
 

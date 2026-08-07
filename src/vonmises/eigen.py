@@ -13,7 +13,9 @@ License for more details.
 """
 
 import ctypes
+
 import numpy as np
+
 from vonmises.lib import vonmises_lib
 
 

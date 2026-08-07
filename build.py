@@ -5,10 +5,12 @@ import sys
 from argparse import ArgumentParser
 from pathlib import Path
 
-wheel_cmd = shlex.split("python -m build -n -x --wheel --log build.log")
-build_cmd = shlex.split("pip wheel . -v -w dist --log build.log")
-install_cmd = shlex.split("pip install . -v --log build.log")
-develop_cmd = shlex.split("pip install -e . -v --log build.log")
+PY = shlex.quote(sys.executable)
+
+wheel_cmd = shlex.split(f"{PY} -m build -n -x --wheel --log build.log")
+build_cmd = shlex.split(f"{PY} -m pip wheel . -v -w dist --log build.log")
+install_cmd = shlex.split(f"{PY} -m pip install . -v --log build.log")
+develop_cmd = shlex.split(f"{PY} setup.py develop")
 
 
 def main(args=sys.argv[1:]):
@@ -49,7 +51,7 @@ def main(args=sys.argv[1:]):
 
     elif args.mode == "clean":
         print("Starting cleanup")
-        subprocess.run(shlex.split("python -m pip uninstall vonMises -y"), check=True)
+        subprocess.run(shlex.split(f"{PY} -m pip uninstall vonMises -y"), check=True)
         subprocess.run(shlex.split("git clean -xdff"), cwd="src", check=True)
 
         for entry in Path("").iterdir():
