@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ "master" ]
 
+# actions-gh-pages pushes the built site to the gh-pages branch, which the
+# repository's default read-only token cannot do.
+permissions:
+  contents: write
+
 jobs:
   docs-deploy:
     name: Build and Deploy Documentation
