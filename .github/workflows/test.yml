@@ -44,6 +44,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-15]
         python-version: ${{ fromJson(needs.fetch-python-versions.outputs.supported_versions) }}
+        # endoflife.date lists every non-EOL Python, which is currently a
+        # wider range than this project supports. Keep in step with
+        # requires-python in pyproject.toml.
+        exclude:
+          - python-version: "3.10"
 
     steps:
       - uses: actions/checkout@v7
@@ -64,6 +69,7 @@ jobs:
         shell: pwsh
         run: |
           choco install -y mingw
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $paths = @(
             'C:\ProgramData\mingw64\mingw64\bin',
             'C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin',
@@ -80,9 +86,10 @@ jobs:
         run: uv venv --python ${{ matrix.python-version }}
 
       - name: Install project
-        run: |
-          uv pip install . -v
-          uv pip install pytest pytest-cov pytest-xdist
+        run: uv pip install . -v
+
+      - name: Install test dependencies
+        run: uv pip install pytest pytest-cov pytest-xdist
 
       - name: Run Pytest
         run: uv run --no-project pytest -v test --cov --cov-report=xml

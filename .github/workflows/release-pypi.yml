@@ -51,6 +51,7 @@ jobs:
         shell: pwsh
         run: |
           choco install -y mingw
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $paths = @(
             'C:\ProgramData\mingw64\mingw64\bin',
             'C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin',
@@ -58,10 +59,11 @@ jobs:
           )
           foreach ($p in $paths) { if (Test-Path $p) { echo $p >> $env:GITHUB_PATH } }
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install numpy cibuildwheel
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install cibuildwheel
+        run: python -m pip install numpy cibuildwheel
 
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheels
