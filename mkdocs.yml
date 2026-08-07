@@ -1,0 +1,45 @@
+site_name: vonMises
+site_description: Numerical Algorithm for Eigenvalue Problems using Rayleigh Quotient and von Mises Iteration with Deflation.
+site_url: https://eggzec.github.io/vonMises
+repo_url: https://github.com/eggzec/vonMises
+repo_name: eggzec/vonMises
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/eggzec/vonMises
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/vonMises/
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.tabs
+    - navigation.sections
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      title: Page contents
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      pygments_lang_class: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+nav:
+  - Home: index.md

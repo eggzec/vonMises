@@ -29,7 +29,12 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/saudzahirr/vonMises"
+"Homepage" = "https://github.com/eggzec/vonMises"
+
+[dependency-groups]
+docs = [
+    "zensical>=0.0.42"
+]
 
 [tool.setuptools_scm]
 version_scheme = "release-branch-semver"
