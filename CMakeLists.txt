@@ -22,26 +22,39 @@ option(USE_PYTHON_LOGGING "Send C++ log records to the Python logging module" ON
 
 if(USE_PYTHON_LOGGING)
     # Only Python.h is needed on Linux and macOS, where the symbols resolve
-    # from the interpreter that dlopens the library. cibuildwheel's
-    # manylinux images do not always satisfy Development.Module, so fall
-    # back to the include directory scikit-build passes in, and to plain
-    # stdout logging if neither is available.
+    # from the interpreter that dlopens the library. Windows additionally
+    # needs the import library. cibuildwheel images do not always satisfy
+    # Development.Module, so fall back to the paths scikit-build passes in,
+    # and to plain stdout logging if neither is available.
     find_package(Python3 QUIET COMPONENTS Development.Module)
 
-    if(NOT Python3_FOUND)
-        if(DEFINED Python3_INCLUDE_DIR AND EXISTS "${Python3_INCLUDE_DIR}/Python.h")
-            set(Python3_INCLUDE_DIRS "${Python3_INCLUDE_DIR}")
-        elseif(DEFINED PYTHON_INCLUDE_DIR AND EXISTS "${PYTHON_INCLUDE_DIR}/Python.h")
-            set(Python3_INCLUDE_DIRS "${PYTHON_INCLUDE_DIR}")
+    if(Python3_FOUND)
+        set(VONMISES_PY_INCLUDE "${Python3_INCLUDE_DIRS}")
+    elseif(DEFINED Python3_INCLUDE_DIR AND EXISTS "${Python3_INCLUDE_DIR}/Python.h")
+        set(VONMISES_PY_INCLUDE "${Python3_INCLUDE_DIR}")
+    elseif(DEFINED PYTHON_INCLUDE_DIR AND EXISTS "${PYTHON_INCLUDE_DIR}/Python.h")
+        set(VONMISES_PY_INCLUDE "${PYTHON_INCLUDE_DIR}")
+    else()
+        set(USE_PYTHON_LOGGING OFF)
+    endif()
+
+    if(USE_PYTHON_LOGGING AND WIN32)
+        if(TARGET Python3::Module)
+            set(VONMISES_PY_LIB Python3::Module)
+        elseif(DEFINED Python3_LIBRARY AND EXISTS "${Python3_LIBRARY}")
+            set(VONMISES_PY_LIB "${Python3_LIBRARY}")
+        elseif(DEFINED PYTHON_LIBRARY AND EXISTS "${PYTHON_LIBRARY}")
+            set(VONMISES_PY_LIB "${PYTHON_LIBRARY}")
         else()
-            message(WARNING
-                "Python development headers not found; logging falls back to stdout")
             set(USE_PYTHON_LOGGING OFF)
         endif()
     endif()
 
     if(USE_PYTHON_LOGGING)
         message(STATUS "Python logging enabled")
+    else()
+        message(WARNING
+            "Python development files not found; logging falls back to stdout")
     endif()
 endif()
 
@@ -82,12 +95,15 @@ target_link_libraries(vonmises PRIVATE fmt)
 # Python logging backend
 if(USE_PYTHON_LOGGING)
     target_compile_definitions(vonmises PRIVATE USE_PYTHON_LOGGING)
-    target_include_directories(vonmises PRIVATE ${Python3_INCLUDE_DIRS})
-    # Link against the Python ABI on Windows only: on Linux and macOS the
-    # extension resolves these symbols from the interpreter that loads it,
-    # and linking libpython there breaks manylinux-style distribution.
+    target_include_directories(vonmises PRIVATE ${VONMISES_PY_INCLUDE})
+
     if(WIN32)
-        target_link_libraries(vonmises PRIVATE Python3::Module)
+        target_link_libraries(vonmises PRIVATE ${VONMISES_PY_LIB})
+    elseif(APPLE)
+        # The macOS linker resolves every symbol at link time unless told
+        # otherwise, so the CPython symbols must be deferred to load time.
+        # Linux already behaves this way.
+        target_link_options(vonmises PRIVATE -Wl,-undefined,dynamic_lookup)
     endif()
 endif()
 
