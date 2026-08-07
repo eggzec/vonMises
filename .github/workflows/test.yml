@@ -26,34 +26,14 @@ jobs:
       supported_versions: ${{ steps.fetch-versions.outputs.supported_versions }}
       bound_versions: ${{ steps.fetch-versions.outputs.bound_versions }}
     steps:
-      # Needed because the version floor is read from pyproject.toml.
-      - uses: actions/checkout@v7
-
       - name: Fetch Supported Python
         id: fetch-versions
         run: |
-          set -euo pipefail
+          versions=$(curl -fsSL https://endoflife.date/api/v1/products/python/ \
+                     | jq '[ .result.releases[] | select(.isEol == false) | .label ]')
 
-          versions=$(curl -fsSL --proto '=https' --proto-redir '=https' \
-                       --retry 3 --retry-all-errors --connect-timeout 15 \
-                       https://endoflife.date/api/v1/products/python/ \
-                     | jq -c '[ .result.releases[] | select(.isEol == false) | .label ]')
-
-          if [ "$(echo "$versions" | jq 'length')" -eq 0 ]; then
-            echo "::error::endoflife.date returned no supported Python versions"
-            exit 1
-          fi
-
-          floor=$(grep -oE 'requires-python[^"]*"[^"]+"' pyproject.toml                   | grep -oE '[0-9]+\.[0-9]+' | head -1)
-          versions=$(echo "$versions" | jq -c --arg f "$floor"             '[ .[] | select((split(".")|map(tonumber)) >= ($f|split(".")|map(tonumber))) ]')
-
-          if [ "$(echo "$versions" | jq 'length')" -eq 0 ]; then
-            echo "::error::no supported Python satisfies requires-python >= $floor"
-            exit 1
-          fi
-
-          echo "supported_versions=$versions"                              >> $GITHUB_OUTPUT
-          echo "bound_versions=$(echo "$versions" | jq -c '[.[0],.[-1]]')" >> $GITHUB_OUTPUT
+          echo "supported_versions=$(echo $versions |jq -c '.')"        >> $GITHUB_OUTPUT
+          echo "bound_versions=$(echo $versions |jq -c '[.[0],.[-1]]')" >> $GITHUB_OUTPUT
 
   build-and-test:
     name: Build and Test
