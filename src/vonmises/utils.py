@@ -28,7 +28,8 @@ def mat_to_array(matfile_path, mat_key):
         numpy.ndarray: NumPy array containing the data from the MAT file.
 
     Raises:
-        ValueError: If no matrix found in the MAT file.
+        ValueError: If the key is not present in the MAT file.
+        TypeError: If the value stored under the key is not a NumPy array.
     """
     with open(matfile_path, "rb") as f:
         mat_data = loadmat(f)
@@ -38,7 +39,7 @@ def mat_to_array(matfile_path, mat_key):
 
     matrix = mat_data[mat_key]
     if not isinstance(matrix, np.ndarray):
-        raise ValueError(f"Data associated with key '{mat_key}' is not a NumPy array.")
+        raise TypeError(f"Data associated with key '{mat_key}' is not a NumPy array.")
 
     return np.array(matrix, dtype=np.double)
 

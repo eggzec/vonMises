@@ -1,6 +1,6 @@
 import sys
-from skbuild import setup
 
+from skbuild import setup
 
 cmake_args = []
 if sys.platform == "win32":

@@ -21,8 +21,28 @@ endif()
 option(USE_PYTHON_LOGGING "Send C++ log records to the Python logging module" ON)
 
 if(USE_PYTHON_LOGGING)
-    find_package(Python3 REQUIRED COMPONENTS Development.Module)
-    message(STATUS "Python logging enabled")
+    # Only Python.h is needed on Linux and macOS, where the symbols resolve
+    # from the interpreter that dlopens the library. cibuildwheel's
+    # manylinux images do not always satisfy Development.Module, so fall
+    # back to the include directory scikit-build passes in, and to plain
+    # stdout logging if neither is available.
+    find_package(Python3 QUIET COMPONENTS Development.Module)
+
+    if(NOT Python3_FOUND)
+        if(DEFINED Python3_INCLUDE_DIR AND EXISTS "${Python3_INCLUDE_DIR}/Python.h")
+            set(Python3_INCLUDE_DIRS "${Python3_INCLUDE_DIR}")
+        elseif(DEFINED PYTHON_INCLUDE_DIR AND EXISTS "${PYTHON_INCLUDE_DIR}/Python.h")
+            set(Python3_INCLUDE_DIRS "${PYTHON_INCLUDE_DIR}")
+        else()
+            message(WARNING
+                "Python development headers not found; logging falls back to stdout")
+            set(USE_PYTHON_LOGGING OFF)
+        endif()
+    endif()
+
+    if(USE_PYTHON_LOGGING)
+        message(STATUS "Python logging enabled")
+    endif()
 endif()
 
 set(SOURCES

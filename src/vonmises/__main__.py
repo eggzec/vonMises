@@ -63,7 +63,7 @@ def main():
     try:
         A = utils.mat_to_array(args.mat, args.key)
         solver.solve(A)
-    except ValueError as e:
+    except (ValueError, TypeError) as e:
         logger.LOGGER.error(f"{e}")
         sys.exit(1)
 

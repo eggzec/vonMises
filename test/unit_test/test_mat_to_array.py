@@ -1,7 +1,9 @@
 import unittest
-import numpy as np
-from vonmises.utils import mat_to_array
 from pathlib import Path
+
+import numpy as np
+
+from vonmises.utils import mat_to_array
 
 
 class TestUtils(unittest.TestCase):
