@@ -69,7 +69,11 @@ jobs:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_MACOS: arm64
           CIBW_ARCHS_WINDOWS: AMD64
-          CIBW_ENVIRONMENT_MACOS: OpenMP_ROOT=/opt/homebrew/opt/libomp
+          # Homebrew's libomp on macos-15 carries minos 15.0, but
+          # scikit-build defaults the wheel to 11.0, and delocate refuses
+          # to vendor a library newer than the wheel target. Keep this in
+          # sync with the macos-15 runner above.
+          CIBW_ENVIRONMENT_MACOS: OpenMP_ROOT=/opt/homebrew/opt/libomp MACOSX_DEPLOYMENT_TARGET=15.0
           CIBW_BEFORE_ALL_MACOS: brew install libomp
 
       - name: Upload wheels

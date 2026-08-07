@@ -26,6 +26,9 @@ jobs:
       supported_versions: ${{ steps.fetch-versions.outputs.supported_versions }}
       bound_versions: ${{ steps.fetch-versions.outputs.bound_versions }}
     steps:
+      # Needed because the version floor is read from pyproject.toml.
+      - uses: actions/checkout@v7
+
       - name: Fetch Supported Python
         id: fetch-versions
         run: |
