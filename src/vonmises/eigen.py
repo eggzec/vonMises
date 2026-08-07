@@ -13,8 +13,11 @@ License for more details.
 """
 
 import ctypes
+
 import numpy as np
+
 from vonmises.lib import vonmises_lib
+from vonmises.logger import LOGGER
 
 
 class EigenValueProblem:
@@ -22,6 +25,8 @@ class EigenValueProblem:
         self.lib = lib
 
     def solve(self, A):
+        LOGGER.debug(f"Solving eigenvalue problem for a {len(A)}x{len(A)} matrix")
+
         solveEigenValueProblem = self.lib.solveEigenValueProblem
         solveEigenValueProblem.argtypes = [
             ctypes.POINTER(ctypes.POINTER(ctypes.c_double)),
@@ -46,6 +51,9 @@ class EigenValueProblem:
 
         eigenvalues = list(eigenvalues)
         eigenvectors = [list(eigenvectors[i][0:size]) for i in range(size)]
+
+        LOGGER.info(f"Computed {size} eigenvalues")
+        LOGGER.debug(f"Eigenvalues: {eigenvalues}")
 
         return np.array(eigenvalues), np.array(eigenvectors).T
 

@@ -1,3 +1,8 @@
-import pkg_resources
+from importlib.metadata import PackageNotFoundError, version
 
-__version__ = pkg_resources.get_distribution("vonMises").version
+from vonmises import logger as logger
+
+try:
+    __version__ = version("vonMises")
+except PackageNotFoundError:
+    __version__ = "unknown"

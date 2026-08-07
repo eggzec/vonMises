@@ -1,5 +1,7 @@
 import unittest
+
 import numpy as np
+
 from vonmises import eigen
 
 test_array = np.array(

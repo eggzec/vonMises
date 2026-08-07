@@ -1,7 +1,9 @@
 import os
 import unittest
+
 import numpy as np
 from scipy.io import loadmat
+
 from vonmises.utils import array_to_mat
 
 

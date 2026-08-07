@@ -1,0 +1,107 @@
+name: Release to PyPI
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build wheels (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: true
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          # Pinned so released wheels are built against a known macOS
+          # SDK and libomp build rather than whatever macos-latest moves
+          # to. Keep in sync with test.yml and build.yml.
+          - macos-15
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install OpenMP (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libomp
+          echo "OpenMP_ROOT=$(brew --prefix libomp)" >> "$GITHUB_ENV"
+
+      - name: Install MinGW (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install -y mingw
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $paths = @(
+            'C:\ProgramData\mingw64\mingw64\bin',
+            'C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin',
+            'C:\tools\mingw64\bin'
+          )
+          foreach ($p in $paths) { if (Test-Path $p) { echo $p >> $env:GITHUB_PATH } }
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install cibuildwheel
+        run: python -m pip install numpy cibuildwheel
+
+      - name: Build wheels
+        run: python -m cibuildwheel --output-dir wheels
+        env:
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_ARCHS_MACOS: arm64
+          CIBW_ARCHS_WINDOWS: AMD64
+          # Homebrew's libomp on macos-15 carries minos 15.0, but
+          # scikit-build defaults the wheel to 11.0, and delocate refuses
+          # to vendor a library newer than the wheel target. Keep this in
+          # sync with the macos-15 runner above.
+          CIBW_ENVIRONMENT_MACOS: OpenMP_ROOT=/opt/homebrew/opt/libomp MACOSX_DEPLOYMENT_TARGET=15.0
+          CIBW_BEFORE_ALL_MACOS: brew install libomp
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheels/*.whl
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    steps:
+      - name: Download wheels
+        uses: actions/download-artifact@v8
+        with:
+          path: wheels
+
+      - name: Unpack wheels
+        run: |
+          find wheels -mindepth 2 -type f -name "*.whl" -exec mv {} wheels/ \;
+          find wheels -mindepth 1 -type d -exec rm -rf {} +
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: wheels

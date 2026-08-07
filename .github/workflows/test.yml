@@ -1,0 +1,133 @@
+name: Test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+  schedule:
+    - cron: "0 0 * * 0"
+
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  fetch-python-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      supported_versions: ${{ steps.fetch-versions.outputs.supported_versions }}
+      bound_versions: ${{ steps.fetch-versions.outputs.bound_versions }}
+    steps:
+      - name: Fetch Supported Python
+        id: fetch-versions
+        run: |
+          versions=$(curl -fsSL https://endoflife.date/api/v1/products/python/ \
+                     | jq '[ .result.releases[] | select(.isEol == false) | .label ]')
+
+          echo "supported_versions=$(echo $versions |jq -c '.')"        >> $GITHUB_OUTPUT
+          echo "bound_versions=$(echo $versions |jq -c '[.[0],.[-1]]')" >> $GITHUB_OUTPUT
+
+  build-and-test:
+    name: Build and Test
+    needs: fetch-python-versions
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-15]
+        python-version: ${{ fromJson(needs.fetch-python-versions.outputs.supported_versions) }}
+        # endoflife.date lists every non-EOL Python, which is currently a
+        # wider range than this project supports. Keep in step with
+        # requires-python in pyproject.toml.
+        exclude:
+          - python-version: "3.10"
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # CMakeLists.txt requires OpenMP. AppleClang ships without it, so the
+      # runtime and headers come from Homebrew and CMake is pointed at them.
+      - name: Install OpenMP (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libomp
+          echo "OpenMP_ROOT=$(brew --prefix libomp)" >> "$GITHUB_ENV"
+
+      # setup.py forces the "MinGW Makefiles" generator on Windows.
+      - name: Install MinGW (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install -y mingw
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $paths = @(
+            'C:\ProgramData\mingw64\mingw64\bin',
+            'C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin',
+            'C:\tools\mingw64\bin'
+          )
+          foreach ($p in $paths) { if (Test-Path $p) { echo $p >> $env:GITHUB_PATH } }
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Create environment
+        run: uv venv --python ${{ matrix.python-version }}
+
+      - name: Install project
+        run: uv pip install . -v
+
+      - name: Install test dependencies
+        run: uv pip install pytest pytest-cov pytest-xdist
+
+      - name: Run Pytest
+        run: uv run --no-project pytest -v test --cov --cov-report=xml
+
+      - name: Smoke test the CLI
+        run: uv run --no-project vonMises -m test/test-data/MATRIX.mat -k A
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          fail_ci_if_error: false
+          use_oidc: true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: |
+            build/
+            dist/
+            build.log
+          retention-days: 5
+          if-no-files-found: ignore
+
+  lint:
+    name: Ruff Lint and Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Ruff
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: --version
+
+      - name: Enforce Lint
+        run: ruff check --output-format=github .
+
+      - name: Enforce Format
+        run: ruff format --check .

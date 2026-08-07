@@ -1,4 +1,5 @@
 import sys
+
 from skbuild import setup
 
 cmake_args = []

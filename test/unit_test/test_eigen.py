@@ -1,6 +1,8 @@
 import unittest
+
 import numpy as np
 import numpy.testing as npt
+
 from vonmises import eigen
 
 test_matrix = np.array(
