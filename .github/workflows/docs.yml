@@ -6,39 +6,56 @@ on:
   pull_request:
     branches: [ "master" ]
 
-# actions-gh-pages pushes the built site to the gh-pages branch, which the
-# repository's default read-only token cannot do.
+  workflow_dispatch:
+
+# Pages is configured with build_type "workflow", so the site is uploaded as
+# an artifact and deployed by actions/deploy-pages. Nothing is pushed to a
+# branch, and the token never needs write access to the repository contents.
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  docs-deploy:
-    name: Build and Deploy Documentation
+  build:
+    name: Build Documentation
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup micromamba
-        uses: mamba-org/setup-micromamba@v2
+      - uses: actions/checkout@v7
         with:
-          environment-name: vm
-          environment-file: environment.yml
-          generate-run-shell: true
+          fetch-depth: 0
 
-      - name: Verify MkDocs installation
-        run: mkdocs --version
-        shell: micromamba-shell {0}
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
 
-      - name: Build documentation
-        run: mkdocs build
-        shell: micromamba-shell {0}
-        working-directory: ./docs
+      # --only-group keeps the project itself out of the environment; docs do
+      # not need the compiled extension, so the runner skips the CMake build.
+      - name: Install docs dependencies
+        run: uv sync --only-group docs
 
+      - name: Build Zensical site
+        run: uv run --no-sync zensical build --clean
+
+      - name: Upload Pages Artifacts
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
       - name: Deploy to GitHub Pages
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/site
+        id: deployment
+        uses: actions/deploy-pages@v5
