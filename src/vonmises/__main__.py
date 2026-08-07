@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 import argparse
-from vonmises import eigen, lib, utils, __version__
 import sys
+
+from vonmises import __version__, eigen, lib, logger, utils
 
 
 def main():
@@ -23,7 +24,26 @@ def main():
         type=str,
         help="Key to access data in the MAT file",
     )
+    parser.add_argument(
+        "-l",
+        "--log-level",
+        metavar="LEVEL",
+        type=int,
+        default=2,
+        choices=range(5),
+        help="Verbosity: 0 error, 1 warning, 2 info, 3 debug, 4 trace",
+    )
+    parser.add_argument(
+        "--log-file",
+        metavar="PATH",
+        type=str,
+        help="Also write log records to PATH",
+    )
     args = parser.parse_args()
+
+    logger.set_output_level(args.log_level)
+    if args.log_file:
+        logger.add_file_handler(args.log_file)
 
     if args.version:
         sys.exit()
@@ -44,7 +64,7 @@ def main():
         A = utils.mat_to_array(args.mat, args.key)
         solver.solve(A)
     except ValueError as e:
-        print(f"Error: {e}")
+        logger.LOGGER.error(f"{e}")
         sys.exit(1)
 
 

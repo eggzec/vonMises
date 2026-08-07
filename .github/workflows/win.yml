@@ -14,40 +14,54 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    defaults:
+      run:
+        # setup-miniconda requires a login shell so that `conda activate`
+        # works; -e makes a failing command fail the step.
+        shell: bash -el {0}
 
     steps:
     - uses: actions/checkout@v4
 
+    # setup-miniconda creates the environment from environment.yml and
+    # activates it for every subsequent step, so the previous
+    # `conda env create` + per-step `conda activate` pair is no longer
+    # needed (and `conda activate` does not persist across `run:` blocks).
     - name: Set up Miniconda
-      uses: conda-incubator/setup-miniconda@v2
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        environment-file: environment.yml
+        activate-environment: vm
+        auto-activate-base: false
 
-    - name: Create Environment
-      run: conda env create -f environment.yml
+    # setup.py forces the "MinGW Makefiles" CMake generator on Windows, but
+    # environment.yml installs no compiler, so the build had nothing to
+    # compile with. m2w64-toolchain provides gcc/g++ and mingw32-make.
+    - name: Install MinGW toolchain
+      run: conda install -y -c conda-forge m2w64-toolchain
 
     - name: Build
       run: |
-        conda activate vm
-        python install.py install
-        vonMises -m test\test-data\MATRIX.mat -k A > vonMises.log 2>&1
+        python build.py install
+        vonMises -m test/test-data/MATRIX.mat -k A > vonMises.log 2>&1
 
     - name: Unittest
       run: |
-        conda activate vm
         pytest -s . > test.log 2>&1
 
     - name: Code Lint
       run: |
-        conda activate vm
         ruff version
         ruff format --check .
         ruff check --output-format=github .
 
     - name: Archive Logs
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-logs
+        name: test-logs-windows
         path: |
           build.log
           vonMises.log
           test.log
+        if-no-files-found: ignore

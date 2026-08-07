@@ -16,6 +16,15 @@ if(OpenMP_CXX_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
 
+# Route C++ log records into Python's logging module. Requires the Python
+# development headers; turn OFF to fall back to plain stdout logging.
+option(USE_PYTHON_LOGGING "Send C++ log records to the Python logging module" ON)
+
+if(USE_PYTHON_LOGGING)
+    find_package(Python3 REQUIRED COMPONENTS Development.Module)
+    message(STATUS "Python logging enabled")
+endif()
+
 set(SOURCES
     src/vonmiseslib/vonMises_API.cpp
     src/vonmiseslib/logger.cpp
@@ -45,6 +54,18 @@ add_library(vonmises SHARED ${SOURCES})
 
 # Link the fmt static library with your vonmises shared library
 target_link_libraries(vonmises PRIVATE fmt)
+
+# Python logging backend
+if(USE_PYTHON_LOGGING)
+    target_compile_definitions(vonmises PRIVATE USE_PYTHON_LOGGING)
+    target_include_directories(vonmises PRIVATE ${Python3_INCLUDE_DIRS})
+    # Link against the Python ABI on Windows only: on Linux and macOS the
+    # extension resolves these symbols from the interpreter that loads it,
+    # and linking libpython there breaks manylinux-style distribution.
+    if(WIN32)
+        target_link_libraries(vonmises PRIVATE Python3::Module)
+    endif()
+endif()
 
 # Link OpenMP if found
 if(OpenMP_CXX_FOUND)
